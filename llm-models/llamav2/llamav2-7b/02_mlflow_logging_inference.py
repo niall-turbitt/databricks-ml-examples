@@ -1,6 +1,6 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC # Manage Llama 2 7B chat model with MLFlow on Databricks
+# MAGIC # Manage Llama 2 7B chat model with MLflow on Databricks
 # MAGIC
 # MAGIC [Llama 2](https://huggingface.co/meta-llama) is a collection of pretrained and fine-tuned generative text models ranging in scale from 7 billion to 70 billion parameters. It is trained with 2T tokens and supports context length window upto 4K tokens. [Llama-2-7b-chat-hf](https://huggingface.co/meta-llama/Llama-2-7b-chat-hf) is the 7B fine-tuned model, optimized for dialogue use cases and converted for the Hugging Face Transformers format.
 # MAGIC
@@ -28,7 +28,7 @@ notebook_login()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Log the model to MLFlow
+# MAGIC ## Log the model to MLflow
 
 # COMMAND ----------
 
@@ -46,16 +46,21 @@ snapshot_location = snapshot_download(repo_id=model, revision=revision, ignore_p
 import mlflow
 import torch
 import transformers
+from typing import Union
 
 # Define PythonModel to log with mlflow.pyfunc.log_model
 
 class Llama2(mlflow.pyfunc.PythonModel):
-    def load_context(self, context):
+    INSTRUCTION_KEY = "### Instruction:"
+    RESPONSE_KEY = "### Response:"
+    INTRO_BLURB = "Below is an instruction that describes a task. Write a response that appropriately completes the request."
+
+    def load_context(self, context: mlflow.pyfunc.PythonModelContext):
+        """Initialize the tokenizer and language model using the specified model repository.
+
+        Args:
+            context (mlflow.pyfunc.PythonModelContext): The context to load.
         """
-        This method initializes the tokenizer and language model
-        using the specified model repository.
-        """
-        # Initialize tokenizer and language model
         self.tokenizer = transformers.AutoTokenizer.from_pretrained(
             context.artifacts['repository'], padding_side="left")
         self.model = transformers.AutoModelForCausalLM.from_pretrained(
@@ -67,26 +72,31 @@ class Llama2(mlflow.pyfunc.PythonModel):
             pad_token_id=self.tokenizer.eos_token_id)
         self.model.eval()
 
-    def _build_prompt(self, instruction):
-        """
-        This method generates the prompt for the model.
-        """
-        INSTRUCTION_KEY = "### Instruction:"
-        RESPONSE_KEY = "### Response:"
-        INTRO_BLURB = (
-            "Below is an instruction that describes a task. "
-            "Write a response that appropriately completes the request."
-        )
+    def _build_prompt(self, instruction: str) -> str:
+        """Generate the prompt for the model.
 
-        return f"""{INTRO_BLURB}
-        {INSTRUCTION_KEY}
+        Args:
+            instruction (str): The instruction to include in the prompt.
+
+        Returns:
+            str: The generated prompt.
+        """
+        return f"""{self.INTRO_BLURB}
+        {self.INSTRUCTION_KEY}
         {instruction}
-        {RESPONSE_KEY}
+        {self.RESPONSE_KEY}
         """
 
-    def _generate_response(self, prompt, temperature, max_new_tokens):
-        """
-        This method generates prediction for a single input.
+    def _generate_response(self, prompt: str, temperature: float, max_new_tokens: int) -> str:
+        """Generate prediction for a single input.
+
+        Args:
+            prompt (str): The prompt for text generation.
+            temperature (float): The temperature for text generation.
+            max_new_tokens (int): The maximum number of new tokens for text generation.
+
+        Returns:
+            str: The generated text.
         """
         # Build the prompt
         prompt = self._build_prompt(prompt)
@@ -104,21 +114,27 @@ class Llama2(mlflow.pyfunc.PythonModel):
 
         return generated_response
       
-    def predict(self, context, model_input):
-        """
-        This method generates prediction for the given input.
-        """
+    def predict(self, context: mlflow.pyfunc.PythonModelContext, model_input: dict[str, Union[str, float, int]]) -> list[str]:
+        """Generate predictions for the given input.
 
+        Args:
+            context (mlflow.pyfunc.PythonModelContext): The collection of artifacts that a PythonModel 
+                                                        can use when performing inference
+            model_input (Dict[str, Union[str, float, int]]): The input for the prediction.
+
+        Returns:
+            list[str]: The generated predictions.
+        """
         outputs = []
 
         for i in range(len(model_input)):
-          prompt = model_input["prompt"][i]
-          temperature = model_input.get("temperature", [1.0])[i]
-          max_new_tokens = model_input.get("max_new_tokens", [100])[i]
-
-          outputs.append(self._generate_response(prompt, temperature, max_new_tokens))
+            prompt = model_input["prompt"][i]
+            temperature = model_input.get("temperature", [1.0])[i]
+            max_new_tokens = model_input.get("max_new_tokens", [100])[i]
+            outputs.append(self._generate_response(prompt, temperature, max_new_tokens))
       
         return outputs
+
 
 # COMMAND ----------
 
@@ -266,7 +282,3 @@ print(deploy_response.json())
 
 # MAGIC %md
 # MAGIC Once the model serving endpoint is ready, you can query it easily with LangChain (see `04_langchain` for example code) running in the same workspace.
-
-# COMMAND ----------
-
-
