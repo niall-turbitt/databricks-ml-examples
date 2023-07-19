@@ -74,8 +74,18 @@ PROMPT_FOR_GENERATION_FORMAT = """{intro}
 
 # COMMAND ----------
 
-# Define parameters to generate text
-def gen_text(prompts, use_template=False, **kwargs):
+
+def gen_text(prompts: list[str], use_template: bool = False, **kwargs) -> list[str]:
+    """Generate text based on a list of provided prompts.
+
+    Args:
+        prompts (list[str]): List of prompts for text generation.
+        use_template (bool, optional): Whether to use the prompt template. Defaults to False.
+        **kwargs: Additional parameters for text generation.
+
+    Returns:
+        list[str]: The generated texts.
+    """
     if use_template:
         full_prompts = [
             PROMPT_FOR_GENERATION_FORMAT.format(instruction=prompt)
@@ -92,12 +102,10 @@ def gen_text(prompts, use_template=False, **kwargs):
         kwargs["max_new_tokens"] = 512
 
     # configure other text generation arguments, see common configurable args here: https://huggingface.co/docs/transformers/main_classes/text_generation#transformers.GenerationConfig
-    kwargs.update(
-        {
-            "pad_token_id": tokenizer.eos_token_id,  # Hugging Face sets pad_token_id to eos_token_id by default; setting here to not see redundant message
-            "eos_token_id": tokenizer.eos_token_id,
-        }
-    )
+    kwargs.update({
+        "pad_token_id": tokenizer.eos_token_id,  # Hugging Face sets pad_token_id to eos_token_id by default; setting here to not see redundant message
+        "eos_token_id": tokenizer.eos_token_id,
+    })
 
     outputs = pipeline(full_prompts, **kwargs)
     outputs = [out[0]["generated_text"] for out in outputs]
@@ -132,7 +140,16 @@ Although some of her works now belong to the classics of the Western tradition o
 
 Arendt’s political thought cannot, in this sense, be identified either with the liberal tradition or with the claims advanced by a number of its critics. Arendt did not conceive of politics as a means for the satisfaction of individual preferences, nor as a way to integrate individuals around a shared conception of the good. Her conception of politics is based instead on the idea of active citizenship, that is, on the value and importance of civic engagement and collective deliberation about all matters affecting the political community. If there is a tradition of thought with which Arendt can be identified, it is the classical tradition of civic republicanism originating in Aristotle and embodied in the writings of Machiavelli, Montesquieu, Jefferson, and Tocqueville. According to this tradition politics finds its authentic expression whenever citizens gather together in a public space to deliberate and decide about matters of collective concern. Political activity is valued not because it may lead to agreement or to a shared conception of the good, but because it enables each citizen to exercise his or her powers of agency, to develop the capacities for judgment and to attain by concerted action some measure of political efficacy."""
 
-def get_num_tokens(text):
+
+def get_num_tokens(text: str) -> int:
+    """Get the number of tokens in the given text.
+
+    Args:
+        text (str): The text.
+
+    Returns:
+        int: The number of tokens.
+    """
     inputs = tokenizer(text, return_tensors="pt").input_ids.to("cuda")
     return inputs.shape[1]
 
@@ -190,9 +207,16 @@ import time
 import logging
 
 
-def get_gen_text_throughput(prompt, use_template=True, **kwargs):
-    """
-    Return tuple ( number of tokens / sec, num tokens, output ) of the generated tokens
+def get_gen_text_throughput(prompt: str, use_template: bool = True, **kwargs) -> tuple[float, int, str]:
+    """Get the throughput (number of tokens / sec), the number of tokens, and the generated text for the given prompt.
+
+    Args:
+        prompt (str): The prompt for text generation.
+        use_template (bool, optional): Whether to use the prompt template. Defaults to True.
+        **kwargs: Additional parameters for text generation.
+
+    Returns:
+        tuple: The throughput (number of tokens / sec), the number of tokens, and the generated text.
     """
     if use_template:
         full_prompt = PROMPT_FOR_GENERATION_FORMAT.format(instruction=prompt)
@@ -228,12 +252,6 @@ def get_gen_text_throughput(prompt, use_template=True, **kwargs):
     result = "".join(result)
 
     return (n_tokens / duration, n_tokens, result)
-
-# COMMAND ----------
-
-throughput, n_tokens, result = get_gen_text_throughput("What is ML?", use_template=False)
-
-print(f"{throughput} tokens/sec, {n_tokens} tokens (including full prompt)")
 
 # COMMAND ----------
 
